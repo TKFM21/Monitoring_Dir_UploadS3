@@ -78,7 +78,7 @@ const fileCopyUploadDelete = async (filePath) => {
   const uploadParams = await createUploadParams(filePath, filenameParse);
   await logger.info('File Read Success', filePath);
 
-  // AWSへ接続できない場合は？uploadメソッドは暗号化されているか？整合性チェックは？
+  // AWSへ接続できない場合は？暗号化されているか？
   const data = await s3.putObject(uploadParams).promise();
   console.log('Etag: ', data.ETag);
   await logger.info('Upload Success', data.Location);
@@ -112,8 +112,8 @@ const createUploadParams = async (filePath, filenameParse) => {
   try {
     const body = await fsPromises.readFile(filePath);
     const md5hash = crypto.createHash('md5');
-    const md5sum = md5hash.update(body).digest('hex').toString('base64');
-    console.log('md5: ', md5sum.toString('base64'));
+    const md5sum = md5hash.update(body).digest('base64');
+    console.log('md5: ', md5sum);
     const randomString = crypto.randomBytes(8).toString('hex');
     // ファイル名が重複しないようにする
     const key = filenameParse.name + '_' + randomString + filenameParse.ext;
