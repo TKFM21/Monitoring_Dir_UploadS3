@@ -80,7 +80,6 @@ const fileCopyUploadDelete = async (filePath) => {
 
   // AWSへ接続できない場合は？暗号化されているか？
   const data = await s3.putObject(uploadParams).promise();
-  console.log('Etag: ', data.ETag);
   await logger.info('Upload Success', data.Location);
 
   await fsPromises.unlink(filePath);
@@ -113,7 +112,6 @@ const createUploadParams = async (filePath, filenameParse) => {
     const body = await fsPromises.readFile(filePath);
     const md5hash = crypto.createHash('md5');
     const md5sum = md5hash.update(body).digest('base64');
-    console.log('md5: ', md5sum);
     const randomString = crypto.randomBytes(8).toString('hex');
     // ファイル名が重複しないようにする
     const key = filenameParse.name + '_' + randomString + filenameParse.ext;
@@ -131,7 +129,8 @@ const createUploadParams = async (filePath, filenameParse) => {
 const mkdirThisMonth = async () => {
   try {
     const today = new Date();
-    const yyyymm = today.getFullYear().toString() + (today.getMonth() + 1).toString();
+    const getMonthMM = ('0' + (today.getMonth() + 1)).slice(-2);
+    const yyyymm = today.getFullYear().toString() + getMonthMM;
     const dirPath = path.join(DEST_DIR, yyyymm);
     await fsPromises.mkdir(dirPath);
     logger.info('Make Directory', dirPath);
