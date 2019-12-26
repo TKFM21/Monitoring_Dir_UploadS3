@@ -7,6 +7,7 @@ const watcher = require('./watcher'); // フォルダ監視用
 const initialCheck = require('./initial_check');
 const logger = require('./logger'); // ログ処理が必要
 const config = require('./config.json');
+const orderCsvToJson = require('./order_csv2json');
 
 // uploadだけの権限にする必要あり
 const s3 = require('./s3');
@@ -32,21 +33,6 @@ const main = async () => {
     await logger.info('Initial scan complete. Ready for changes');
     const watchedPaths = watcher.getWatched();
     await logger.info('watchedPaths :', watchedPaths);
-    // スクリプト起動時に既存ファイルがaddイベントとして処理されるため不要な処理
-    // const existingFiles = watchedPaths[WATCHING_DIR];
-    // // すでに保管されているファイルの処理が必要
-    // if (existingFiles.length) {
-    //   await logger.info('既存ファイルの処理を開始', existingFiles);
-    //   for (const file of existingFiles) {
-    //     const filePath = path.join(WATCHING_DIR, file);
-    //     await logger.info('Existing File processing: ', filePath);
-    //     try {
-    //       await fileCopyUploadDelete(filePath);
-    //     } catch (error) {
-    //       await errorState(error);
-    //     }
-    //   }
-    // }
   });
 
   // ファイルの追加を検知
@@ -75,12 +61,12 @@ const fileCopyUploadDelete = async (filePath) => {
   // COPYFILE_EXCLを指定しているためコピー先に同名ファイルがあった場合は上記エラー
   // renameメソッドでもファイル移動が可能だが、移動先に同名ファイルが存在する場合に上書きとなってしまうため利用せず
 
-  const uploadParams = await createUploadParams(filePath, filenameParse);
+  const uploadParams = await createUploadParams(filePath);
   await logger.info('File Read Success', filePath);
 
   // AWSへ接続できない場合は？暗号化されているか？
   const data = await s3.putObject(uploadParams).promise();
-  await logger.info('Upload Success', data.Location);
+  await logger.info('Upload Success', data);
 
   await fsPromises.unlink(filePath);
   await logger.info('File delete Success!', filePath);
@@ -107,14 +93,14 @@ const errorState = async (error) => {
   });
 };
 
-const createUploadParams = async (filePath, filenameParse) => {
+const createUploadParams = async (filePath) => {
   try {
-    const body = await fsPromises.readFile(filePath);
+    const body = await orderCsvToJson(filePath); // ファイルの中身をjson形式へ変換
     const md5hash = crypto.createHash('md5');
     const md5sum = md5hash.update(body).digest('base64');
     const randomString = crypto.randomBytes(8).toString('hex');
     // ファイル名が重複しないようにする
-    const key = filenameParse.name + '_' + randomString + filenameParse.ext;
+    const key = createYYYYMMDDstring() + randomString + '.json';
     return {
       Bucket: BUCKET,
       Key: key,
@@ -129,8 +115,8 @@ const createUploadParams = async (filePath, filenameParse) => {
 const mkdirThisMonth = async () => {
   try {
     const today = new Date();
-    const getMonthMM = ('0' + (today.getMonth() + 1)).slice(-2);
-    const yyyymm = today.getFullYear().toString() + getMonthMM;
+    const monthMM = ('0' + (today.getMonth() + 1)).slice(-2);
+    const yyyymm = today.getFullYear().toString() + monthMM;
     const dirPath = path.join(DEST_DIR, yyyymm);
     await fsPromises.mkdir(dirPath);
     logger.info('Make Directory', dirPath);
@@ -142,6 +128,13 @@ const mkdirThisMonth = async () => {
     }
     throw new Error(error);
   }
+};
+
+const createYYYYMMDDstring = () => {
+  const today = new Date();
+  const monthMM = ('0' + (today.getMonth() + 1)).slice(-2);
+  const dayDD = ('0' + (today.getDay() + 1)).slice(-2);
+  return today.getFullYear().toString() + monthMM + dayDD;
 };
 
 main();
