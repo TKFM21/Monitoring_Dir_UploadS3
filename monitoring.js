@@ -39,6 +39,8 @@ const main = async () => {
   watcher.on('add', async filePath => {
     await logger.info('add file: ', filePath);
     try {
+      await bucketExistCheck();
+      await logger.info('Bucket Existed.');
       await fileCopyUploadDelete(filePath);
     } catch (error) {
       await errorState(error);
@@ -48,6 +50,14 @@ const main = async () => {
     await errorState(error);
     await watcher.close().then(() => logger.info('Watcher closed: watcher on error'));
   });
+};
+
+const bucketExistCheck = async () => {
+  try {
+    await s3.headBucket({ Bucket: BUCKET }).promise();
+  } catch (error) {
+    throw new Error('S3 Bucket not exist!');
+  }
 };
 
 const fileCopyUploadDelete = async (filePath) => {
